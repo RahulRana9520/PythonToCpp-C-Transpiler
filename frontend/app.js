@@ -447,3 +447,78 @@ function showToast(message, type = 'success', icon = '') {
   }, 3000);
 }
 
+// ── Mobile Bottom Bar ──────────────────────────────
+(function setupMobile() {
+  const mobileRunBtn      = document.getElementById('mobileRunBtn');
+  const mobilePanelInput  = document.getElementById('mobilePanelInput');
+  const mobilePanelOutput = document.getElementById('mobilePanelOutput');
+  const mobileTargetC     = document.getElementById('mobileTargetC');
+  const mobileTargetCpp   = document.getElementById('mobileTargetCpp');
+
+  // Mobile Run button
+  if (mobileRunBtn) {
+    mobileRunBtn.addEventListener('click', handleConvert);
+  }
+
+  // Mobile panel toggle (Input / Output)
+  function setMobilePanel(panel) {
+    workspace.classList.remove('mobile-show-input', 'mobile-show-output');
+    workspace.classList.add('mobile-show-' + panel);
+    mobilePanelInput.classList.toggle('active',  panel === 'input');
+    mobilePanelOutput.classList.toggle('active', panel === 'output');
+  }
+
+  if (mobilePanelInput)  mobilePanelInput.addEventListener('click',  () => setMobilePanel('input'));
+  if (mobilePanelOutput) mobilePanelOutput.addEventListener('click', () => {
+    setMobilePanel('output');
+    // Auto-switch to code tab if there's output
+    if (outputCode.textContent.trim()) switchToTab('code');
+  });
+
+  // Mobile target tabs (mirrors header tabs)
+  function syncMobileTarget(val) {
+    currentTarget = val;
+    // Sync header target tabs
+    document.querySelectorAll('.target-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.value === val);
+    });
+    updateOutputLabel();
+  }
+
+  if (mobileTargetC)   mobileTargetC.addEventListener('click',   () => syncMobileTarget('c'));
+  if (mobileTargetCpp) mobileTargetCpp.addEventListener('click', () => syncMobileTarget('cpp'));
+
+  // Keep mobile target in sync when header tabs are clicked
+  document.querySelectorAll('.header-right .target-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (mobileTargetC)   mobileTargetC.classList.toggle('active',   tab.dataset.value === 'c');
+      if (mobileTargetCpp) mobileTargetCpp.classList.toggle('active', tab.dataset.value === 'cpp');
+    });
+  });
+
+  // On mobile, after a successful conversion auto-switch panel to output
+  const _origConvert = handleConvert;
+  // Patch: listen for output content changes → switch panel
+  const observer = new MutationObserver(() => {
+    if (window.innerWidth <= 480 && !outputCode.classList.contains('hidden')) {
+      setMobilePanel('output');
+    }
+  });
+  observer.observe(outputCode, { characterData: true, childList: true, subtree: true });
+
+  // Init: default mobile panel
+  if (window.innerWidth <= 480) {
+    setMobilePanel('input');
+  }
+
+  // On resize crossing 480px threshold, reset state
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 480) {
+      workspace.classList.remove('mobile-show-input', 'mobile-show-output');
+    } else if (!workspace.classList.contains('mobile-show-input') &&
+               !workspace.classList.contains('mobile-show-output')) {
+      setMobilePanel('input');
+    }
+  });
+})();
+

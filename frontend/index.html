@@ -207,6 +207,26 @@ else:
                 <pre id="irOutput" class="code-output ir-view"></pre>
             </div>
         </div>
+    </div><!-- end workspace -->
+
+    <!-- Mobile Bottom Bar (visible only on ≤480px) -->
+    <div class="mobile-bottom-bar" id="mobileBottomBar">
+        <!-- Target selector mirror -->
+        <div class="mobile-target-tabs">
+            <button class="target-tab" data-value="c" id="mobileTargetC">C</button>
+            <button class="target-tab active" data-value="cpp" id="mobileTargetCpp">C++</button>
+        </div>
+
+        <!-- Panel toggle: Input | Output -->
+        <div class="mobile-panel-toggle">
+            <button class="mobile-panel-btn active" id="mobilePanelInput" title="Show Python editor">⌨ Input</button>
+            <button class="mobile-panel-btn" id="mobilePanelOutput" title="Show output">📄 Output</button>
+        </div>
+
+        <!-- Run button shortcut -->
+        <button class="btn-convert" id="mobileRunBtn" style="padding:5px 12px;font-size:12px;">
+            <span>▶</span> Run
+        </button>
     </div>
 
     <!-- Toast Container -->
