@@ -1,7 +1,10 @@
 // TransPyC — Professional Frontend
 
-const API_URL = 'http://localhost:5000/api/convert';
-const HEALTH_URL = 'http://localhost:5000/api/health';
+// Auto-detect: use relative paths on production (Vercel), localhost in dev
+const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE   = IS_DEV ? 'http://localhost:5000' : '';
+const API_URL    = API_BASE + '/api/convert';
+const HEALTH_URL = API_BASE + '/api/health';
 
 // ── State ──────────────────────────────────────────
 let isConverting = false;
