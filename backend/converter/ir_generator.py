@@ -53,7 +53,8 @@ class IRGenerator:
                 if trimmed.startswith('#'):
                     nodes.append({
                         'type': 'comment',
-                        'text': trimmed[1:].strip()
+                        'text': trimmed[1:].strip(),
+                        'line': i + 1
                     })
                 i += 1
                 continue
@@ -134,7 +135,8 @@ class IRGenerator:
                 return_val = trimmed[6:].strip() if len(trimmed) > 6 else None
                 nodes.append({
                     'type': 'return',
-                    'value': self._parse_expression(return_val) if return_val else None
+                    'value': self._parse_expression(return_val) if return_val else None,
+                    'line': i + 1
                 })
                 i += 1
                 continue
@@ -157,7 +159,8 @@ class IRGenerator:
                     args = self._split_args(inner)
                     nodes.append({
                         'type': 'print',
-                        'args': [self._parse_expression(arg.strip()) for arg in args]
+                        'args': [self._parse_expression(arg.strip()) for arg in args],
+                        'line': i + 1
                     })
                     i += 1
                     continue
@@ -165,6 +168,7 @@ class IRGenerator:
             # Input statement
             if '= input(' in trimmed or '= int(input(' in trimmed or '= float(input(' in trimmed:
                 input_node = self._parse_input(trimmed)
+                input_node['line'] = i + 1
                 nodes.append(input_node)
                 i += 1
                 continue
@@ -176,7 +180,8 @@ class IRGenerator:
                 nodes.append({
                     'type': 'tuple_swap',
                     'targets': [lhs1, lhs2],
-                    'values': [rhs1, rhs2]
+                    'values': [rhs1, rhs2],
+                    'line': i + 1
                 })
                 i += 1
                 continue
@@ -197,7 +202,8 @@ class IRGenerator:
                             'target': real_target,
                             'value': self._parse_expression(f'{real_target} {op} {value}'),
                             'inferredType': self._infer_type(value),
-                            'isDeclaration': False
+                            'isDeclaration': False,
+                            'line': i + 1
                         })
                     else:
                         nodes.append({
@@ -205,7 +211,8 @@ class IRGenerator:
                             'target': target,
                             'value': self._parse_expression(value),
                             'inferredType': self._infer_type(value),
-                            'isDeclaration': True
+                            'isDeclaration': True,
+                            'line': i + 1
                         })
             
             i += 1
@@ -242,7 +249,8 @@ class IRGenerator:
             'name': name,
             'params': params,
             'returnType': return_type,
-            'body': body
+            'body': body,
+            'line': i + 1
         }
         
         return func_node, i + 1 + body_lines
@@ -289,7 +297,8 @@ class IRGenerator:
             'condition': self._parse_expression(condition),
             'body': body,
             'elifs': elifs,
-            'elseBody': else_body
+            'elseBody': else_body,
+            'line': i + 1
         }
         
         return if_node, next_i
@@ -305,7 +314,8 @@ class IRGenerator:
         while_node = {
             'type': 'while',
             'condition': self._parse_expression(condition),
-            'body': body
+            'body': body,
+            'line': i + 1
         }
         
         return while_node, i + 1 + body_lines
@@ -336,7 +346,8 @@ class IRGenerator:
             'variable': variable,
             'start': start,
             'end': end,
-            'body': body
+            'body': body,
+            'line': i + 1
         }
         
         return for_node, i + 1 + body_lines

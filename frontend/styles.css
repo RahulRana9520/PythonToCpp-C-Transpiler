@@ -487,7 +487,29 @@ html, body {
   user-select: none;
   overflow: hidden;   /* hides scrollbar, synced via JS */
   flex-shrink: 0;
-  white-space: pre;  /* keep each number on its own line */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.line-number {
+  padding: 0;
+}
+
+.line-number.error {
+  color: var(--red);
+  text-decoration: underline;
+  text-decoration-color: var(--red);
+}
+
+.line-number.warning {
+  color: var(--yellow);
+  text-decoration: underline;
+  text-decoration-color: var(--yellow);
+}
+
+.line-number.active {
+  background: rgba(255,255,255,.05);
 }
 
 .code-editor {
@@ -703,6 +725,12 @@ html, body {
   align-items: center;
   gap: 10px;
   margin-top: 3px;
+}
+
+.problem-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .problem-type-tag {
