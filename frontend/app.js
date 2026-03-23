@@ -231,7 +231,11 @@ const PROBLEM_META = {
   success: { icon: '✓', label: 'OK' },
 };
 
+let currentProblems = [];
+let activeProblemLine = null;
+
 function renderProblems(warnings) {
+  currentProblems = warnings || [];
   problemsList.innerHTML = '';
 
   if (!warnings || warnings.length === 0) {
@@ -260,9 +264,19 @@ function renderProblems(warnings) {
           <span class="problem-type-tag">${meta.label}</span>
           ${w.line ? `<span class="problem-line">Line ${w.line}</span>` : ''}
         </div>
+        ${w.hint ? `<div class="problem-hint">${escapeHtml(w.hint)}</div>` : ''}
       </div>`;
+    if (w.line) {
+      item.dataset.line = String(w.line);
+      item.addEventListener('click', () => {
+        goToLine(w.line);
+      });
+    }
     problemsList.appendChild(item);
   });
+
+  // Re-render line numbers with problem markers
+  updateLineNumbers();
 }
 
 function escapeHtml(str) {
@@ -359,8 +373,48 @@ pythonInput.addEventListener('scroll', () => {
 
 function updateLineNumbers() {
   const lines = pythonInput.value.split('\n').length;
-  lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+  const errorLines = new Set(
+    (currentProblems || [])
+      .filter(w => w.type === 'error' && typeof w.line === 'number')
+      .map(w => w.line)
+  );
+  const warningLines = new Set(
+    (currentProblems || [])
+      .filter(w => w.type === 'warning' && typeof w.line === 'number')
+      .map(w => w.line)
+  );
+
+  let html = '';
+  for (let i = 1; i <= lines; i++) {
+    let cls = 'line-number';
+    if (errorLines.has(i)) cls += ' error';
+    else if (warningLines.has(i)) cls += ' warning';
+    if (activeProblemLine === i) cls += ' active';
+    html += `<div class="${cls}" data-line="${i}">${i}</div>`;
+  }
+  lineNumbers.innerHTML = html;
   lineNumbers.scrollTop = pythonInput.scrollTop;
+}
+
+function goToLine(line) {
+  const n = Math.max(1, Number(line) || 1);
+  const lines = pythonInput.value.split('\n');
+  let pos = 0;
+  for (let i = 0; i < n - 1 && i < lines.length; i++) {
+    pos += lines[i].length + 1; // +1 for the newline
+  }
+  pythonInput.focus();
+  pythonInput.selectionStart = pythonInput.selectionEnd = pos;
+
+  // Scroll so the target line is roughly in the middle
+  const totalLines = lines.length;
+  const ratio = (n - 1) / Math.max(totalLines - 1, 1);
+  const maxScroll = pythonInput.scrollHeight - pythonInput.clientHeight;
+  pythonInput.scrollTop = ratio * maxScroll;
+  lineNumbers.scrollTop = pythonInput.scrollTop;
+
+  activeProblemLine = n;
+  updateLineNumbers();
 }
 
 function updateStatusCounts() {
