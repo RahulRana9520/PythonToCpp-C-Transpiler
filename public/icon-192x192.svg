@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- Background -->
+  <rect width="192" height="192" fill="#0d1117"/>
+  
+  <!-- Rounded corners -->
+  <rect width="192" height="192" rx="45" fill="#2f81f7"/>
+  
+  <!-- Lightning bolt (TransPyC icon) -->
+  <g transform="translate(96, 96)">
+    <!-- Main bolt -->
+    <polygon points="0,-60 30,-10 -10,-10 20,40 -40,-5 -20,-40" fill="#ffffff" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Python + C accent -->
+  <g transform="translate(130, 130)">
+    <circle cx="0" cy="0" r="20" fill="#3572a5" opacity="0.9"/>
+    <text x="-8" y="8" font-size="24" font-weight="bold" fill="white" font-family="monospace">C</text>
+  </g>
+</svg>

@@ -2,7 +2,20 @@
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Convert Python code to C and C++ instantly with semantic analysis and error detection">
+    <meta name="theme-color" content="#2f81f7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TransPyC">
+    <meta name="msapplication-TileColor" content="#2f81f7">
+    
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512x512.png">
+    <link rel="apple-touch-icon" href="/icon-192x192.png">
+    <link rel="manifest" href="/manifest.json">
+    
     <title>TransPyC — Python to C/C++ Transpiler</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -233,5 +246,74 @@ else:
     <div id="toastContainer" class="toast-container"></div>
 
     <script src="app.js"></script>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => {
+                        console.log('[PWA] Service Worker registered:', reg.scope);
+                        
+                        // Check for updates periodically
+                        setInterval(() => {
+                            reg.update().catch(err => console.log('[PWA] Update check failed:', err));
+                        }, 60000); // Check every minute
+                        
+                        // Listen for updates
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New service worker available, notify user
+                                    showUpdateNotification();
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.error('[PWA] Service Worker registration failed:', err));
+            });
+
+            // Handle controller change (new SW activated)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('[PWA] New Service Worker controller activated');
+            });
+        } else {
+            console.warn('[PWA] Service Worker not supported in this browser');
+        }
+
+        // Show update notification when new PWA version is available
+        function showUpdateNotification() {
+            const toastContainer = document.getElementById('toastContainer');
+            if (!toastContainer) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'toast info';
+            toast.innerHTML = `
+                <span class="toast-icon">🔄</span>
+                <div class="toast-body">
+                    <strong>Update available!</strong> Reload to get the latest features.
+                    <div style="margin-top: 8px; display: flex; gap: 8px;">
+                        <button onclick="window.location.reload()" style="padding: 4px 12px; background: #2f81f7; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">Reload</button>
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="padding: 4px 12px; background: transparent; color: #8b949e; border: 1px solid #30363d; border-radius: 4px; cursor: pointer; font-size: 12px;">Dismiss</button>
+                    </div>
+                </div>
+            `;
+            toastContainer.appendChild(toast);
+
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                if (toast.parentElement) toast.remove();
+            }, 10000);
+        }
+
+        // Allow manual cache clearing for debugging
+        window.clearPWACache = () => {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+                console.log('[PWA] Cache clear request sent');
+            }
+        };
+    </script>
 </body>
 </html>
