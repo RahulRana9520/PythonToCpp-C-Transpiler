@@ -26,6 +26,12 @@ venv/
 .venv/
 *.pyc
 
+# PWA Documentation
+PWA_SETUP.md
+PWA_TESTING_GUIDE.md
+PWA_SUMMARY.md
+PWA_COMPLETE.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
