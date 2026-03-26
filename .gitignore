@@ -26,11 +26,10 @@ venv/
 .venv/
 *.pyc
 
-# PWA Documentation
-PWA_SETUP.md
-PWA_TESTING_GUIDE.md
-PWA_SUMMARY.md
-PWA_COMPLETE.txt
+# PWA Documentation (in ProjectImplementation folder)
+ProjectImplementation/PWA_*.md
+ProjectImplementation/PWA_*.txt
+ProjectImplementation/generate_icons.py
 
 # Editor directories and files
 .vscode/*
