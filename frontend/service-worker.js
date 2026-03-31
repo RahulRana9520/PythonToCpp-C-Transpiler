@@ -4,7 +4,7 @@
 // - API calls (/api/*): Network-first (fallback to cached response if offline)
 // - Errors: Graceful offline handling with cached data or fallback response
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `transpyc-static-${CACHE_VERSION}`;
 const API_CACHE = `transpyc-api-${CACHE_VERSION}`;
 const FONT_CACHE = `transpyc-fonts-${CACHE_VERSION}`;
@@ -110,8 +110,13 @@ self.addEventListener('fetch', event => {
     return event.respondWith(cacheFirstStrategy(request, FONT_CACHE));
   }
 
-  // Static assets: cache-first
-  return event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
+  // Documents (HTML navigations): network-first so UI updates show up
+  if (request.mode === 'navigate' || request.destination === 'document' || request.headers.get('accept')?.includes('text/html')) {
+    return event.respondWith(networkFirstStrategy(request, STATIC_CACHE));
+  }
+
+  // Other static assets: stale-while-revalidate (fast + updates in background)
+  return event.respondWith(staleWhileRevalidateStrategy(event, request, STATIC_CACHE));
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -147,6 +152,35 @@ function cacheFirstStrategy(request, cacheName) {
           return caches.match(request);
         });
     });
+}
+
+// ═══════════════════════════════════════════════════════════
+// STRATEGY: Stale-while-revalidate (fast + keeps cache fresh)
+// ═══════════════════════════════════════════════════════════
+function staleWhileRevalidateStrategy(event, request, cacheName) {
+  return caches.open(cacheName).then(cache => {
+    return cache.match(request).then(cachedResponse => {
+      const fetchPromise = fetch(request)
+        .then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(request, networkResponse.clone()).catch(() => {
+              console.log('[SW] Failed to update cache:', request.url);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => null);
+
+      // Update cache in background when we already have something to show
+      if (cachedResponse) {
+        event.waitUntil(fetchPromise);
+        return cachedResponse;
+      }
+
+      // Otherwise fall back to network (or cache if network fails)
+      return fetchPromise.then(r => r || cache.match(request));
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
