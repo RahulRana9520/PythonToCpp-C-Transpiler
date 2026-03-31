@@ -360,7 +360,7 @@ html, body {
   height: 7px;
   border-radius: 50%;
   background: rgba(255,255,255,.4);
-  transition: background .3s;
+  transition: background-color .3s;
 }
 .status-dot.online { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
 .status-dot.offline { background: #f85149; }
@@ -373,7 +373,6 @@ html, body {
 
 .status-sep { opacity: .5; }
 .status-meta { opacity: .8; }
-.status-text {}
 
 /* =====================================================
    WORKSPACE & PANELS
