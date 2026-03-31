@@ -288,6 +288,32 @@ html, body {
 
 .convert-icon { font-size: 11px; }
 
+/* ── Install Button (PWA) ── */
+.btn-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 6px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s, transform .15s;
+}
+.btn-install:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+.btn-install:active { transform: translateY(0); }
+.btn-install:disabled { opacity: .55; cursor: not-allowed; }
+.btn-install-icon { flex-shrink: 0; }
+
 .kbd {
   font-family: var(--font-ui);
   font-size: 10px;
@@ -868,6 +894,8 @@ html, body {
 
   .btn-convert { padding: 6px 12px; }
   .kbd { display: none; }
+
+  .btn-install .btn-text { display: none; }
 
   .layout-group .group-label { display: none; }
   .target-group .group-label { display: none; }

@@ -42,6 +42,9 @@ const toastContainer = document.getElementById('toastContainer');
 const resizeHandle   = document.getElementById('resizeHandle');
 const inputPanel     = document.getElementById('inputPanel');
 const outputPanel    = document.getElementById('outputPanel');
+const installBtn     = document.getElementById('installBtn');
+
+let deferredInstallPrompt = null;
 
 // ── Init ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,12 +52,74 @@ document.addEventListener('DOMContentLoaded', () => {
   setupOutputTabs();
   setupTargetTabs();
   setupLayoutButtons();
+  setupInstallButton();
   setupResizer();
   updateLineNumbers();
   updateStatusCounts();
   checkBackend();
   pythonInput.focus();
 });
+
+// ── PWA Install ───────────────────────────────────
+function isRunningStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
+    window.navigator.standalone === true;
+}
+
+function setupInstallButton() {
+  if (!installBtn) return;
+
+  // Hide if already installed / launched as an app
+  if (isRunningStandalone()) {
+    installBtn.classList.add('hidden');
+    return;
+  }
+
+  // Some browsers fire beforeinstallprompt after DOMContentLoaded.
+  // We'll keep it hidden until we receive that event.
+  installBtn.classList.add('hidden');
+
+  installBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) {
+      showToast('Install is not available right now', 'info', 'ℹ️');
+      return;
+    }
+
+    try {
+      installBtn.disabled = true;
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+
+      if (choice && choice.outcome === 'accepted') {
+        showToast('Installed successfully', 'success', '✓');
+        installBtn.classList.add('hidden');
+      } else {
+        showToast('Install dismissed', 'info', 'ℹ️');
+        installBtn.disabled = false;
+      }
+    } catch {
+      installBtn.disabled = false;
+      showToast('Install failed', 'error', '✕');
+    }
+  });
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (!isRunningStandalone()) {
+      installBtn.classList.remove('hidden');
+      installBtn.disabled = false;
+    }
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    installBtn.classList.add('hidden');
+  });
+}
 
 // ── Theme ──────────────────────────────────────────
 function applyTheme(theme) {
