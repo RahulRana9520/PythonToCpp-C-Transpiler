@@ -36,6 +36,37 @@
       }
     },
     {
+      "src": "/app.js",
+      "dest": "frontend/app.js",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "/styles.css",
+      "dest": "frontend/styles.css",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "text/css"
+      }
+    },
+    {
+      "src": "/index.html",
+      "dest": "frontend/index.html",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "text/html; charset=utf-8"
+      }
+    },
+    {
+      "src": "/Images/(.*)",
+      "dest": "frontend/Images/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
       "src": "/(.*\\.(js|css|png|ico|svg|woff2?|webp|json))",
       "dest": "frontend/$1",
       "headers": {
@@ -44,7 +75,11 @@
     },
     {
       "src": "/(.*)",
-      "dest": "frontend/index.html"
+      "dest": "frontend/index.html",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "text/html; charset=utf-8"
+      }
     }
   ]
 }
