@@ -4,7 +4,7 @@
 // - API calls (/api/*): Network-first (fallback to cached response if offline)
 // - Errors: Graceful offline handling with cached data or fallback response
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const STATIC_CACHE = `transpyc-static-${CACHE_VERSION}`;
 const API_CACHE = `transpyc-api-${CACHE_VERSION}`;
 const FONT_CACHE = `transpyc-fonts-${CACHE_VERSION}`;
@@ -13,8 +13,8 @@ const FONT_CACHE = `transpyc-fonts-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/app.js',
-  '/styles.css',
+  '/app.js?v=20260331',
+  '/styles.css?v=20260331',
   '/manifest.json',
   '/Images/favicon.ico',
   '/Images/favicon-16x16.png',
