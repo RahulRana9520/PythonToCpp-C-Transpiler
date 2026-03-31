@@ -6,8 +6,8 @@
 // Option 2: Use Sharp (Node.js): npm install sharp
 //
 // Example command:
-// sharp public/icon-192x192.svg -png -o public/icon-192x192.png
-// sharp public/icon-512x512.svg -png -o public/icon-512x512.png
+// sharp frontend/Images/icon-192x192.svg -png -o frontend/Images/icon-192x192.png
+// sharp frontend/Images/icon-512x512.svg -png -o frontend/Images/icon-512x512.png
 //
 // Maskable icon versions (for adaptive icons on Android):
 // Create versions with padding/safe zone for maskable icons
@@ -16,7 +16,7 @@
 console.log('[PWA] To generate proper PNG icons:');
 console.log('1. Install Sharp: npm install sharp --save-dev');
 console.log('2. Convert SVG to PNG:');
-console.log('   - sharp public/icon-192x192.svg -png -o public/icon-192x192.png');
-console.log('   - sharp public/icon-512x512.svg -png -o public/icon-512x512.png');
+console.log('   - sharp frontend/Images/icon-192x192.svg -png -o frontend/Images/icon-192x192.png');
+console.log('   - sharp frontend/Images/icon-512x512.svg -png -o frontend/Images/icon-512x512.png');
 console.log('3. Alternatively, use online tools or ImageMagick');
 console.log('4. Update maskable icon versions if needed');

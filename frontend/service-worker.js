@@ -4,7 +4,7 @@
 // - API calls (/api/*): Network-first (fallback to cached response if offline)
 // - Errors: Graceful offline handling with cached data or fallback response
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `transpyc-static-${CACHE_VERSION}`;
 const API_CACHE = `transpyc-api-${CACHE_VERSION}`;
 const FONT_CACHE = `transpyc-fonts-${CACHE_VERSION}`;
@@ -16,14 +16,14 @@ const STATIC_ASSETS = [
   '/app.js',
   '/styles.css',
   '/manifest.json',
-  '/favicon.ico',
-  '/favicon-16x16.png',
-  '/favicon-32x32.png',
-  '/apple-touch-icon.png',
-  '/icon-192x192.png',
-  '/icon-192x192-maskable.png',
-  '/icon-512x512.png',
-  '/icon-512x512-maskable.png'
+  '/Images/favicon.ico',
+  '/Images/favicon-16x16.png',
+  '/Images/favicon-32x32.png',
+  '/Images/apple-touch-icon.png',
+  '/Images/icon-192x192.png',
+  '/Images/icon-192x192-maskable.png',
+  '/Images/icon-512x512.png',
+  '/Images/icon-512x512-maskable.png'
 ];
 
 // Font URLs to cache
