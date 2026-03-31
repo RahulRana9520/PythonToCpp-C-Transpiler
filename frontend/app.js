@@ -68,22 +68,43 @@ function isRunningStandalone() {
     window.navigator.standalone === true;
 }
 
-function setupInstallButton() {
+function getInstallHelpText() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  const isChromium = /Chrome|Chromium|Edg\//.test(ua);
+
+  if (isIOS) return 'On iPhone/iPad: Share → Add to Home Screen.';
+  if (isAndroid) return 'On Android: Browser menu (⋯) → Install app.';
+  if (isChromium) return 'On Chrome/Edge: use the install icon in the address bar or Menu (⋯) → Install app.';
+  return 'Use your browser menu to install this app (if supported).';
+}
+
+function syncInstallButtonVisibility() {
   if (!installBtn) return;
 
-  // Hide if already installed / launched as an app
   if (isRunningStandalone()) {
     installBtn.classList.add('hidden');
     return;
   }
 
-  // Some browsers fire beforeinstallprompt after DOMContentLoaded.
-  // We'll keep it hidden until we receive that event.
-  installBtn.classList.add('hidden');
+  installBtn.classList.remove('hidden');
+  installBtn.disabled = false;
+}
+
+function setupInstallButton() {
+  if (!installBtn) return;
+
+  syncInstallButtonVisibility();
 
   installBtn.addEventListener('click', async () => {
+    if (isRunningStandalone()) {
+      installBtn.classList.add('hidden');
+      return;
+    }
+
     if (!deferredInstallPrompt) {
-      showToast('Install is not available right now', 'info', 'ℹ️');
+      showToast(getInstallHelpText(), 'info', 'ℹ️');
       return;
     }
 
@@ -105,21 +126,19 @@ function setupInstallButton() {
       showToast('Install failed', 'error', '✕');
     }
   });
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    if (!isRunningStandalone()) {
-      installBtn.classList.remove('hidden');
-      installBtn.disabled = false;
-    }
-  });
-
-  window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
-    installBtn.classList.add('hidden');
-  });
 }
+
+// Capture install prompt as soon as it fires (some browsers won't fire it at all).
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  syncInstallButtonVisibility();
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (installBtn) installBtn.classList.add('hidden');
+});
 
 // ── Theme ──────────────────────────────────────────
 function applyTheme(theme) {
