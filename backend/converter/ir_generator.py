@@ -91,7 +91,8 @@ class IRGenerator:
             # For loop
             if trimmed.startswith('for ') and ' in range(' in trimmed:
                 for_node, next_i = self._parse_for(lines, i, indent)
-                nodes.append(for_node)
+                if for_node:
+                    nodes.append(for_node)
                 i = next_i
                 continue
             
@@ -323,12 +324,13 @@ class IRGenerator:
     def _parse_for(self, lines: List[str], i: int, indent: int) -> Tuple[Dict, int]:
         """Parse for loop"""
         trimmed = lines[i].strip()
-        match = re.match(r'^for\s+(\w+)\s+in\s+range\(([^)]+)\)\s*:', trimmed)
+        match = re.match(r'^for\s+(\w+)\s+in\s+range\((.+)\)\s*:', trimmed)
         
         if not match:
             return None, i + 1
         
         variable = match.group(1)
+        # Handle arguments separated by comma (assuming no commas in the expressions themselves for now)
         range_args = [arg.strip() for arg in match.group(2).split(',')]
         
         if len(range_args) == 1:
