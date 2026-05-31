@@ -52,6 +52,8 @@ class SemanticAnalyzer:
                 self._analyze_print(node)
             elif node_type == 'input':
                 self._analyze_input(node)
+            elif node_type == 'expr_stmt':
+                self._analyze_expression(node.get('value'), node.get('line'))
     
     def _analyze_function(self, node: Dict):
         """Analyze function definition"""
@@ -75,7 +77,21 @@ class SemanticAnalyzer:
         # Analyze function body
         prev_func = self.current_function
         self.current_function = func_name
+        
+        # Save symbol table state to support local scoping for params
+        prev_symbols = dict(self.symbol_table)
+        
+        # Add params to symbol table before analyzing body
+        for param in node.get('params', []):
+            self.symbol_table[param['name']] = {
+                'type': 'variable',
+                'inferredType': param.get('inferredType', 'int')
+            }
+            
         self._analyze_block(node.get('body', []))
+        
+        # Restore symbol table (remove locals)
+        self.symbol_table = prev_symbols
         self.current_function = prev_func
     
     def _analyze_assign(self, node: Dict):

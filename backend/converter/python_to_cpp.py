@@ -135,6 +135,8 @@ class PythonToCppConverter(BaseConverter):
             return self._generate_input(node, level)
         elif node_type == 'tuple_swap':
             return self._generate_tuple_swap(node, level)
+        elif node_type == 'expr_stmt':
+            return f'{self._indent(level)}{self._generate_expr(node.get("value"))};'
         elif node_type == 'comment':
             return f'{self._indent(level)}// {node.get("text", "")}'
         else:
