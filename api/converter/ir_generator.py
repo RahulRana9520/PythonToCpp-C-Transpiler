@@ -2,11 +2,11 @@
 Intermediate Representation (IR) Generator
 Converts Python AST to a simplified IR for transpilation
 """
-import re
+import ast
 from typing import Dict, List, Any, Tuple
 
 class IRGenerator:
-    """Generates intermediate representation from Python code"""
+    """Generates intermediate representation from Python code using Python's AST"""
     
     def __init__(self):
         self.warnings = []
@@ -22,522 +22,309 @@ class IRGenerator:
             Tuple of (ir_dict, warnings_list)
         """
         self.warnings = []
-        lines = python_code.split('\n')
-        body = self._parse_block(lines, 0, 0)
-        includes = self._detect_includes(body)
-        
-        ir = {
-            'type': 'program',
-            'body': body,
-            'includes': includes
-        }
-        
-        return ir, self.warnings
-    
-    def _get_indent(self, line: str) -> int:
-        """Get indentation level of a line"""
-        match = re.match(r'^(\s*)', line)
-        return len(match.group(1)) if match else 0
-    
-    def _parse_block(self, lines: List[str], start_idx: int, base_indent: int) -> List[Dict]:
-        """Parse a block of Python code"""
+        try:
+            tree = ast.parse(python_code)
+            body = self._parse_block(tree.body)
+            includes = self._detect_includes(body)
+            
+            ir = {
+                'type': 'program',
+                'body': body,
+                'includes': includes
+            }
+            return ir, self.warnings
+        except SyntaxError as e:
+            self.warnings.append({
+                'type': 'error',
+                'message': f"Syntax error: {e.msg}",
+                'line': e.lineno
+            })
+            return {'type': 'program', 'body': [], 'includes': []}, self.warnings
+
+    def _parse_block(self, ast_nodes: List[ast.AST]) -> List[Dict]:
         nodes = []
-        i = start_idx
+        for node in ast_nodes:
+            parsed_node = self._parse_node(node)
+            if parsed_node:
+                if isinstance(parsed_node, list):
+                    nodes.extend(parsed_node)
+                else:
+                    nodes.append(parsed_node)
+        return nodes
+
+    def _parse_node(self, node: ast.AST) -> Any:
+        if isinstance(node, ast.FunctionDef):
+            params = [{'name': arg.arg, 'inferredType': 'int'} for arg in node.args.args]
+            body = self._parse_block(node.body)
+            returnType = self._detect_return_type(body)
+            return {
+                'type': 'function',
+                'name': node.name,
+                'params': params,
+                'returnType': returnType,
+                'body': body,
+                'line': getattr(node, 'lineno', 0)
+            }
         
-        while i < len(lines):
-            line = lines[i]
-            trimmed = line.strip()
+        elif isinstance(node, ast.If):
+            condition = self._parse_expression(node.test)
+            body = self._parse_block(node.body)
             
-            # Skip empty lines and comments
-            if not trimmed or trimmed.startswith('#'):
-                if trimmed.startswith('#'):
-                    nodes.append({
-                        'type': 'comment',
-                        'text': trimmed[1:].strip()
-                    })
-                i += 1
-                continue
+            elifs = []
+            elseBody = []
             
-            indent = self._get_indent(line)
-            if indent < base_indent:
-                break
-            if indent > base_indent:
-                i += 1
-                continue
+            current_orelse = node.orelse
+            while current_orelse and len(current_orelse) == 1 and isinstance(current_orelse[0], ast.If):
+                elif_node = current_orelse[0]
+                elifs.append({
+                    'condition': self._parse_expression(elif_node.test),
+                    'body': self._parse_block(elif_node.body)
+                })
+                current_orelse = elif_node.orelse
             
-            # Function definition
-            if trimmed.startswith('def '):
-                func_node, next_i = self._parse_function(lines, i, indent)
-                if func_node:
-                    nodes.append(func_node)
-                i = next_i
-                continue
+            if current_orelse:
+                elseBody = self._parse_block(current_orelse)
+                
+            return {
+                'type': 'if',
+                'condition': condition,
+                'body': body,
+                'elifs': elifs,
+                'elseBody': elseBody,
+                'line': getattr(node, 'lineno', 0)
+            }
+        
+        elif isinstance(node, ast.While):
+            return {
+                'type': 'while',
+                'condition': self._parse_expression(node.test),
+                'body': self._parse_block(node.body),
+                'line': getattr(node, 'lineno', 0)
+            }
             
-            # If statement
-            if trimmed.startswith('if ') and trimmed.endswith(':'):
-                if_node, next_i = self._parse_if(lines, i, indent)
-                nodes.append(if_node)
-                i = next_i
-                continue
-            
-            # While loop
-            if trimmed.startswith('while ') and trimmed.endswith(':'):
-                while_node, next_i = self._parse_while(lines, i, indent)
-                nodes.append(while_node)
-                i = next_i
-                continue
-            
-            # For loop
-            if trimmed.startswith('for ') and ' in range(' in trimmed:
-                for_node, next_i = self._parse_for(lines, i, indent)
-                nodes.append(for_node)
-                i = next_i
-                continue
-            
-            # Unsupported for loop
-            if trimmed.startswith('for ') and ' in range(' not in trimmed:
+        elif isinstance(node, ast.For):
+            if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == 'range':
+                args = node.iter.args
+                if len(args) == 1:
+                    start = {'exprType': 'literal', 'value': 0, 'dataType': 'int'}
+                    end = self._parse_expression(args[0])
+                else:
+                    start = self._parse_expression(args[0])
+                    end = self._parse_expression(args[1])
+                    
+                var_name = node.target.id if isinstance(node.target, ast.Name) else 'i'
+                
+                return {
+                    'type': 'for',
+                    'variable': var_name,
+                    'start': start,
+                    'end': end,
+                    'body': self._parse_block(node.body),
+                    'line': getattr(node, 'lineno', 0)
+                }
+            else:
                 self.warnings.append({
                     'type': 'warning',
-                    'message': "Only 'for x in range(...)' loops are supported",
-                    'line': i + 1
+                    'message': "Only 'for x in range(...)' loops are fully supported",
+                    'line': getattr(node, 'lineno', 0)
                 })
-                body_lines = self._collect_block(lines, i + 1, indent)
-                i = i + 1 + body_lines
-                continue
+                return None
 
-            # try/except block — parse try body, wrap in comment, skip except
-            if trimmed == 'try:':
-                try_body_lines = self._collect_block(lines, i + 1, indent)
-                try_body = self._parse_block(lines, i + 1, indent + 4)
-                nodes.extend(try_body)
-                next_i = i + 1 + try_body_lines
-                # skip except clauses
-                while next_i < len(lines):
-                    next_trimmed = lines[next_i].strip()
-                    next_indent = self._get_indent(lines[next_i]) if lines[next_i].strip() else indent + 1
-                    if next_indent == indent and (next_trimmed.startswith('except') or next_trimmed.startswith('finally')):
-                        except_body_lines = self._collect_block(lines, next_i + 1, indent)
-                        next_i = next_i + 1 + except_body_lines
-                    else:
-                        break
-                i = next_i
-                continue
-
-            # except / finally — skip if encountered at top level
-            if trimmed.startswith('except') or trimmed.startswith('finally'):
-                body_lines = self._collect_block(lines, i + 1, indent)
-                i = i + 1 + body_lines
-                continue
-
-            # Return statement
-            if trimmed.startswith('return'):
-                return_val = trimmed[6:].strip() if len(trimmed) > 6 else None
-                nodes.append({
-                    'type': 'return',
-                    'value': self._parse_expression(return_val) if return_val else None
-                })
-                i += 1
-                continue
-            
-            # Print statement — match print(...) with balanced parens
-            if trimmed.startswith('print('):
-                # find matching closing paren
-                depth = 0
-                end_pos = -1
-                for ci, ch in enumerate(trimmed):
-                    if ch == '(':
-                        depth += 1
-                    elif ch == ')':
-                        depth -= 1
-                        if depth == 0:
-                            end_pos = ci
-                            break
-                if end_pos != -1:
-                    inner = trimmed[6:end_pos]
-                    args = self._split_args(inner)
-                    nodes.append({
-                        'type': 'print',
-                        'args': [self._parse_expression(arg.strip()) for arg in args]
-                    })
-                    i += 1
-                    continue
-            
-            # Input statement
-            if '= input(' in trimmed or '= int(input(' in trimmed or '= float(input(' in trimmed:
-                input_node = self._parse_input(trimmed)
-                nodes.append(input_node)
-                i += 1
-                continue
-            
-            # Tuple swap: a, b = b, a  (two vars on each side)
-            tuple_swap = re.match(r'^(\w+)\s*,\s*(\w+)\s*=\s*(\w+)\s*,\s*(\w+)$', trimmed)
-            if tuple_swap:
-                lhs1, lhs2, rhs1, rhs2 = tuple_swap.groups()
-                nodes.append({
-                    'type': 'tuple_swap',
-                    'targets': [lhs1, lhs2],
-                    'values': [rhs1, rhs2]
-                })
-                i += 1
-                continue
-
-            # Assignment
-            if '=' in trimmed and '==' not in trimmed and not trimmed.startswith(('if', 'while')):
-                eq_idx = trimmed.find('=')
-                if eq_idx > 0 and trimmed[eq_idx - 1] not in '!<>':
-                    target = trimmed[:eq_idx].strip()
-                    value = trimmed[eq_idx + 1:].strip()
-                    
-                    # Handle augmented assignment
-                    if target.endswith(('+', '-', '*', '/')):
-                        op = target[-1]
-                        real_target = target[:-1].strip()
-                        nodes.append({
-                            'type': 'assign',
-                            'target': real_target,
-                            'value': self._parse_expression(f'{real_target} {op} {value}'),
-                            'inferredType': self._infer_type(value),
-                            'isDeclaration': False
-                        })
-                    else:
-                        nodes.append({
-                            'type': 'assign',
-                            'target': target,
-                            'value': self._parse_expression(value),
-                            'inferredType': self._infer_type(value),
-                            'isDeclaration': True
-                        })
-            
-            i += 1
-        
-        return nodes
-    
-    def _parse_function(self, lines: List[str], i: int, indent: int) -> Tuple[Dict, int]:
-        """Parse function definition"""
-        trimmed = lines[i].strip()
-        match = re.match(r'^def\s+(\w+)\s*\(([^)]*)\)\s*:', trimmed)
-        
-        if not match:
-            return None, i + 1
-        
-        name = match.group(1)
-        params_str = match.group(2)
-        params = []
-        
-        if params_str:
-            for param in params_str.split(','):
-                param = param.strip()
-                if param:
-                    params.append({
-                        'name': param,
-                        'inferredType': 'int'
-                    })
-        
-        body_lines = self._collect_block(lines, i + 1, indent)
-        body = self._parse_block(lines, i + 1, indent + 4)
-        return_type = self._detect_return_type(body)
-        
-        func_node = {
-            'type': 'function',
-            'name': name,
-            'params': params,
-            'returnType': return_type,
-            'body': body
-        }
-        
-        return func_node, i + 1 + body_lines
-    
-    def _parse_if(self, lines: List[str], i: int, indent: int) -> Tuple[Dict, int]:
-        """Parse if statement"""
-        trimmed = lines[i].strip()
-        condition = trimmed[3:-1].strip()  # Remove 'if ' and ':'
-        
-        body_lines = self._collect_block(lines, i + 1, indent)
-        body = self._parse_block(lines, i + 1, indent + 4)
-        
-        next_i = i + 1 + body_lines
-        elifs = []
-        else_body = []
-        
-        # Check for elif and else
-        while next_i < len(lines):
-            next_line = lines[next_i].strip()
-            next_indent = self._get_indent(lines[next_i])
-            
-            if next_indent != indent:
-                break
-            
-            if next_line.startswith('elif ') and next_line.endswith(':'):
-                elif_cond = next_line[5:-1].strip()
-                elif_body_lines = self._collect_block(lines, next_i + 1, indent)
-                elif_body = self._parse_block(lines, next_i + 1, indent + 4)
-                elifs.append({
-                    'condition': self._parse_expression(elif_cond),
-                    'body': elif_body
-                })
-                next_i = next_i + 1 + elif_body_lines
-            elif next_line == 'else:':
-                else_body_lines = self._collect_block(lines, next_i + 1, indent)
-                else_body = self._parse_block(lines, next_i + 1, indent + 4)
-                next_i = next_i + 1 + else_body_lines
-                break
-            else:
-                break
-        
-        if_node = {
-            'type': 'if',
-            'condition': self._parse_expression(condition),
-            'body': body,
-            'elifs': elifs,
-            'elseBody': else_body
-        }
-        
-        return if_node, next_i
-    
-    def _parse_while(self, lines: List[str], i: int, indent: int) -> Tuple[Dict, int]:
-        """Parse while loop"""
-        trimmed = lines[i].strip()
-        condition = trimmed[6:-1].strip()  # Remove 'while ' and ':'
-        
-        body_lines = self._collect_block(lines, i + 1, indent)
-        body = self._parse_block(lines, i + 1, indent + 4)
-        
-        while_node = {
-            'type': 'while',
-            'condition': self._parse_expression(condition),
-            'body': body
-        }
-        
-        return while_node, i + 1 + body_lines
-    
-    def _parse_for(self, lines: List[str], i: int, indent: int) -> Tuple[Dict, int]:
-        """Parse for loop"""
-        trimmed = lines[i].strip()
-        match = re.match(r'^for\s+(\w+)\s+in\s+range\(([^)]+)\)\s*:', trimmed)
-        
-        if not match:
-            return None, i + 1
-        
-        variable = match.group(1)
-        range_args = [arg.strip() for arg in match.group(2).split(',')]
-        
-        if len(range_args) == 1:
-            start = self._parse_expression('0')
-            end = self._parse_expression(range_args[0])
-        else:
-            start = self._parse_expression(range_args[0])
-            end = self._parse_expression(range_args[1])
-        
-        body_lines = self._collect_block(lines, i + 1, indent)
-        body = self._parse_block(lines, i + 1, indent + 4)
-        
-        for_node = {
-            'type': 'for',
-            'variable': variable,
-            'start': start,
-            'end': end,
-            'body': body
-        }
-        
-        return for_node, i + 1 + body_lines
-    
-    def _parse_input(self, trimmed: str) -> Dict:
-        """Parse input statement"""
-        eq_idx = trimmed.find('=')
-        target = trimmed[:eq_idx].strip()
-        inferred_type = 'string'
-        prompt = None
-        
-        if 'int(input(' in trimmed:
-            inferred_type = 'int'
-            match = re.search(r'int\(input\(([^)]*)\)\)', trimmed)
-            if match and match.group(1):
-                prompt = self._parse_expression(match.group(1))
-        elif 'float(input(' in trimmed:
-            inferred_type = 'float'
-            match = re.search(r'float\(input\(([^)]*)\)\)', trimmed)
-            if match and match.group(1):
-                prompt = self._parse_expression(match.group(1))
-        else:
-            match = re.search(r'input\(([^)]*)\)', trimmed)
-            if match and match.group(1):
-                prompt = self._parse_expression(match.group(1))
-        
-        return {
-            'type': 'input',
-            'target': target,
-            'prompt': prompt,
-            'inferredType': inferred_type
-        }
-    
-    def _parse_expression(self, expr_str: str) -> Dict:
-        """Parse an expression"""
-        if not expr_str:
-            return {'exprType': 'literal', 'value': '', 'dataType': 'string'}
-        
-        expr_str = expr_str.strip()
-        
-        # String literal
-        if (expr_str.startswith('"') and expr_str.endswith('"')) or \
-           (expr_str.startswith("'") and expr_str.endswith("'")):
+        elif isinstance(node, ast.Return):
             return {
-                'exprType': 'literal',
-                'value': expr_str[1:-1],
-                'dataType': 'string'
+                'type': 'return',
+                'value': self._parse_expression(node.value) if node.value else None,
+                'line': getattr(node, 'lineno', 0)
             }
-        
-        # Number literal
-        if expr_str.replace('.', '', 1).replace('-', '', 1).isdigit():
-            return {
-                'exprType': 'literal',
-                'value': float(expr_str) if '.' in expr_str else int(expr_str),
-                'dataType': 'float' if '.' in expr_str else 'int'
-            }
-        
-        # Boolean literal
-        if expr_str in ('True', 'False'):
-            return {
-                'exprType': 'literal',
-                'value': expr_str == 'True',
-                'dataType': 'bool'
-            }
-        
-        # Binary operation
-        for op in ['==', '!=', '<=', '>=', '<', '>', '+', '-', '*', '/', '%', 'and', 'or']:
-            if op in expr_str:
-                parts = expr_str.split(op, 1)
-                if len(parts) == 2:
+            
+        elif isinstance(node, ast.Assign):
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Tuple):
+                if isinstance(node.value, ast.Tuple):
+                    t1 = [elt.id for elt in node.targets[0].elts if isinstance(elt, ast.Name)]
+                    v1 = [elt.id for elt in node.value.elts if isinstance(elt, ast.Name)]
+                    if len(t1) == 2 and len(v1) == 2:
+                        return {
+                            'type': 'tuple_swap',
+                            'targets': t1,
+                            'values': v1,
+                            'line': getattr(node, 'lineno', 0)
+                        }
+            
+            # Normal assignment
+            target_node = node.targets[0]
+            if isinstance(target_node, ast.Name):
+                target = target_node.id
+                
+                # Check for input()
+                is_input, input_data = self._check_input_call(node.value)
+                if is_input:
                     return {
-                        'exprType': 'binary_op',
-                        'operator': op,
-                        'left': self._parse_expression(parts[0].strip()),
-                        'right': self._parse_expression(parts[1].strip())
+                        'type': 'input',
+                        'target': target,
+                        'prompt': input_data['prompt'],
+                        'inferredType': input_data['type'],
+                        'line': getattr(node, 'lineno', 0)
                     }
-        
-        # Function call
-        if '(' in expr_str and expr_str.endswith(')'):
-            paren_idx = expr_str.index('(')
-            func_name = expr_str[:paren_idx]
-            args_str = expr_str[paren_idx + 1:-1]
-            args = [self._parse_expression(arg.strip()) for arg in self._split_args(args_str)]
-            return {
-                'exprType': 'call',
-                'function': func_name,
-                'args': args
-            }
-        
-        # Variable
-        return {
-            'exprType': 'variable',
-            'name': expr_str
-        }
-    
-    def _collect_block(self, lines: List[str], start_idx: int, base_indent: int) -> int:
-        """Count lines in a block"""
-        count = 0
-        expected_indent = base_indent + 4
-        
-        for i in range(start_idx, len(lines)):
-            line = lines[i]
-            if not line.strip():
-                count += 1
-                continue
+                
+                value = self._parse_expression(node.value)
+                inferred = self._infer_type_from_expr(value)
+                
+                return {
+                    'type': 'assign',
+                    'target': target,
+                    'value': value,
+                    'inferredType': inferred,
+                    'isDeclaration': True, # Will be refined by semantic analyzer
+                    'line': getattr(node, 'lineno', 0)
+                }
+                
+        elif isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Name):
+                target = node.target.id
+                op_map = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/', ast.Mod: '%'}
+                op_type = type(node.op)
+                if op_type in op_map:
+                    val_expr = self._parse_expression(node.value)
+                    left_expr = {'exprType': 'variable', 'name': target}
+                    bin_op = {
+                        'exprType': 'binary_op',
+                        'operator': op_map[op_type],
+                        'left': left_expr,
+                        'right': val_expr
+                    }
+                    return {
+                        'type': 'assign',
+                        'target': target,
+                        'value': bin_op,
+                        'inferredType': self._infer_type_from_expr(val_expr),
+                        'isDeclaration': False,
+                        'line': getattr(node, 'lineno', 0)
+                    }
+
+        elif isinstance(node, ast.Expr):
+            if isinstance(node.value, ast.Call):
+                if isinstance(node.value.func, ast.Name) and node.value.func.id == 'print':
+                    return {
+                        'type': 'print',
+                        'args': [self._parse_expression(arg) for arg in node.value.args],
+                        'line': getattr(node, 'lineno', 0)
+                    }
+                else:
+                    return {
+                        'type': 'expr_stmt',
+                        'value': self._parse_expression(node.value),
+                        'line': getattr(node, 'lineno', 0)
+                    }
+
+        return None
+
+    def _check_input_call(self, node: ast.AST) -> Tuple[bool, Dict]:
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id == 'input':
+                prompt = self._parse_expression(node.args[0]) if node.args else None
+                return True, {'prompt': prompt, 'type': 'string'}
+            elif node.func.id in ('int', 'float') and node.args and isinstance(node.args[0], ast.Call):
+                inner_call = node.args[0]
+                if isinstance(inner_call.func, ast.Name) and inner_call.func.id == 'input':
+                    prompt = self._parse_expression(inner_call.args[0]) if inner_call.args else None
+                    return True, {'prompt': prompt, 'type': node.func.id}
+        return False, {}
+
+    def _parse_expression(self, expr: ast.AST) -> Dict:
+        if isinstance(expr, ast.Constant):
+            if isinstance(expr.value, str):
+                return {'exprType': 'literal', 'value': expr.value, 'dataType': 'string'}
+            elif isinstance(expr.value, bool):
+                return {'exprType': 'literal', 'value': expr.value, 'dataType': 'bool'}
+            elif isinstance(expr.value, float):
+                return {'exprType': 'literal', 'value': expr.value, 'dataType': 'float'}
+            elif isinstance(expr.value, int):
+                return {'exprType': 'literal', 'value': expr.value, 'dataType': 'int'}
+                
+        elif isinstance(expr, ast.Name):
+            return {'exprType': 'variable', 'name': expr.id}
             
-            indent = self._get_indent(line)
-            if indent < expected_indent:
-                break
-            count += 1
-        
-        return count
-    
-    def _split_args(self, args_str: str) -> List[str]:
-        """Split function arguments"""
-        if not args_str.strip():
-            return []
-        
-        args = []
-        current = []
-        paren_depth = 0
-        in_string = False
-        string_char = None
-        
-        for char in args_str:
-            if char in ('"', "'") and not in_string:
-                in_string = True
-                string_char = char
-                current.append(char)
-            elif char == string_char and in_string:
-                in_string = False
-                string_char = None
-                current.append(char)
-            elif char == '(' and not in_string:
-                paren_depth += 1
-                current.append(char)
-            elif char == ')' and not in_string:
-                paren_depth -= 1
-                current.append(char)
-            elif char == ',' and paren_depth == 0 and not in_string:
-                args.append(''.join(current))
-                current = []
-            else:
-                current.append(char)
-        
-        if current:
-            args.append(''.join(current))
-        
-        return args
-    
-    def _infer_type(self, value_str: str) -> str:
-        """Infer type from value"""
-        value_str = value_str.strip()
-        
-        if value_str.startswith(('"', "'")):
-            return 'string'
-        if '.' in value_str and value_str.replace('.', '', 1).replace('-', '', 1).isdigit():
-            return 'float'
-        if value_str.replace('-', '', 1).isdigit():
-            return 'int'
-        if value_str in ('True', 'False'):
-            return 'bool'
-        
+        elif isinstance(expr, ast.BinOp):
+            op_map = {
+                ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/', ast.Mod: '%'
+            }
+            op_str = op_map.get(type(expr.op), '+')
+            return {
+                'exprType': 'binary_op',
+                'operator': op_str,
+                'left': self._parse_expression(expr.left),
+                'right': self._parse_expression(expr.right)
+            }
+            
+        elif isinstance(expr, ast.BoolOp):
+            op_str = 'and' if isinstance(expr.op, ast.And) else 'or'
+            # Convert multi-value bool ops to nested binary ops
+            res = self._parse_expression(expr.values[-1])
+            for val in reversed(expr.values[:-1]):
+                res = {
+                    'exprType': 'binary_op',
+                    'operator': op_str,
+                    'left': self._parse_expression(val),
+                    'right': res
+                }
+            return res
+            
+        elif isinstance(expr, ast.Compare):
+            op_map = {
+                ast.Eq: '==', ast.NotEq: '!=', ast.Lt: '<', ast.LtE: '<=', ast.Gt: '>', ast.GtE: '>='
+            }
+            if expr.ops:
+                op_str = op_map.get(type(expr.ops[0]), '==')
+                return {
+                    'exprType': 'binary_op',
+                    'operator': op_str,
+                    'left': self._parse_expression(expr.left),
+                    'right': self._parse_expression(expr.comparators[0])
+                }
+                
+        elif isinstance(expr, ast.Call):
+            if isinstance(expr.func, ast.Name):
+                return {
+                    'exprType': 'call',
+                    'function': expr.func.id,
+                    'args': [self._parse_expression(arg) for arg in expr.args]
+                }
+                
+        return {'exprType': 'literal', 'value': '', 'dataType': 'string'}
+
+    def _infer_type_from_expr(self, expr: Dict) -> str:
+        if not expr: return 'int'
+        if expr.get('exprType') == 'literal':
+            return expr.get('dataType', 'int')
+        if expr.get('exprType') == 'binary_op':
+            l_type = self._infer_type_from_expr(expr.get('left', {}))
+            r_type = self._infer_type_from_expr(expr.get('right', {}))
+            if l_type == 'float' or r_type == 'float': return 'float'
+            if l_type == 'string' or r_type == 'string': return 'string'
+            return l_type
         return 'int'
-    
+
     def _detect_return_type(self, body: List[Dict]) -> str:
-        """Detect return type from function body"""
         for node in body:
             if node.get('type') == 'return':
-                ret_val = node.get('value')
-                if ret_val is None:
-                    return 'void'
-                if ret_val.get('dataType'):
-                    return ret_val['dataType']
+                val = node.get('value')
+                if val:
+                    return self._infer_type_from_expr(val)
         return 'void'
-    
+
     def _detect_includes(self, nodes: List[Dict]) -> List[str]:
-        """Detect required includes"""
         includes = set()
-        
         def walk(node):
-            if node.get('type') == 'print':
-                includes.add('stdio')
-            elif node.get('type') == 'input':
+            if node.get('type') in ('print', 'input'):
                 includes.add('stdio')
             elif node.get('type') == 'function':
-                for child in node.get('body', []):
-                    walk(child)
+                for child in node.get('body', []): walk(child)
             elif node.get('type') == 'if':
-                for child in node.get('body', []):
-                    walk(child)
-                for child in node.get('elseBody', []):
-                    walk(child)
+                for child in node.get('body', []): walk(child)
+                for child in node.get('elseBody', []): walk(child)
                 for elif_block in node.get('elifs', []):
-                    for child in elif_block.get('body', []):
-                        walk(child)
+                    for child in elif_block.get('body', []): walk(child)
             elif node.get('type') in ('while', 'for'):
-                for child in node.get('body', []):
-                    walk(child)
-        
-        for node in nodes:
-            walk(node)
-        
+                for child in node.get('body', []): walk(child)
+        for node in nodes: walk(node)
         return list(includes)
